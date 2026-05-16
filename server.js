@@ -30,7 +30,7 @@ async function startServer() {
         model: "gemini-3-flash-preview",
         contents: `You are a professional librarian at Lumina Archive. 
         Given the user's reading history: [${userHistory.join(', ')}] 
-        and our library catalog: [${books.slice(0, 50).map((b: any) => b.title + ' by ' + b.author).join(', ')}], 
+        and our library catalog: [${books.slice(0, 50).map((b) => b.title + ' by ' + b.author).join(', ')}], 
         recommend exactly 3 books from the catalog that the user should read next. 
         Helpful context: Recommendations should be relevant to their interests.
         Return ONLY a JSON array of strings containing the titles. No other text.`,

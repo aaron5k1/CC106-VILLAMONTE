@@ -1,0 +1,85 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Library user profile",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["admin", "member"] },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Book": {
+      "title": "Book",
+      "description": "Book in the library catalog",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "author": { "type": "string" },
+        "isbn": { "type": "string" },
+        "category": { "type": "string" },
+        "description": { "type": "string" },
+        "coverUrl": { "type": "string" },
+        "quantity": { "type": "integer" },
+        "availableCount": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "author", "quantity", "availableCount"]
+    },
+    "Loan": {
+      "title": "Loan",
+      "description": "Record of a borrowed book",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "bookId": { "type": "string" },
+        "userId": { "type": "string" },
+        "borrowDate": { "type": "string", "format": "date-time" },
+        "dueDate": { "type": "string", "format": "date-time" },
+        "returnDate": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["active", "returned"] }
+      },
+      "required": ["bookId", "userId", "borrowDate", "dueDate", "status"]
+    },
+    "Reservation": {
+      "title": "Reservation",
+      "description": "Book hold request",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "bookId": { "type": "string" },
+        "userId": { "type": "string" },
+        "requestDate": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["pending", "fulfilled", "cancelled", "expired"] },
+        "bookTitle": { "type": "string" },
+        "bookAuthor": { "type": "string" },
+        "bookCoverUrl": { "type": "string" }
+      },
+      "required": ["bookId", "userId", "requestDate", "status"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "User profiles and roles"
+    },
+    "books/{bookId}": {
+      "schema": "Book",
+      "description": "Library book catalog"
+    },
+    "loans/{loanId}": {
+      "schema": "Loan",
+      "description": "Borrowing records"
+    },
+    "reservations/{resId}": {
+      "schema": "Reservation",
+      "description": "Book hold requests"
+    }
+  }
+}

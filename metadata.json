@@ -1,0 +1,8 @@
+{
+  "name": "Lumina",
+  "description": "An elite library management system featuring AI-driven curation, professional research archives, and a sophisticated scholarly dashboard.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

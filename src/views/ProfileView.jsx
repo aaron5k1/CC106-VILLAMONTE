@@ -2,9 +2,44 @@ import React from 'react';
 import { User, Mail, Shield, ShieldCheck, MapPin, Calendar, Camera, Edit3 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { libraryService } from '../services/libraryService';
+const compressImage = (file) => {
+    return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+                const MAX_WIDTH = 400;
+                const MAX_HEIGHT = 400;
+                if (width > height) {
+                    if (width > MAX_WIDTH) {
+                        height = Math.round(height * (MAX_WIDTH / width));
+                        width = MAX_WIDTH;
+                    }
+                } else {
+                    if (height > MAX_HEIGHT) {
+                        width = Math.round(width * (MAX_HEIGHT / height));
+                        height = MAX_HEIGHT;
+                    }
+                }
+                canvas.width = Math.round(width);
+                canvas.height = Math.round(height);
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                resolve(canvas.toDataURL('image/jpeg', 0.7));
+            };
+            img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+};
+
 export default function ProfileView({ userProfile }) {
     const [isEditing, setIsEditing] = React.useState(false);
     const [displayName, setDisplayName] = React.useState(userProfile?.displayName || '');
+    const [location, setLocation] = React.useState(userProfile?.location || 'Central Archive, Wing A');
     const [isSaving, setIsSaving] = React.useState(false);
     if (!userProfile)
         return null;
@@ -13,6 +48,7 @@ export default function ProfileView({ userProfile }) {
         setIsSaving(true);
         try {
             await libraryService.ensureUserProfile({ ...userProfile, displayName });
+            await libraryService.updateUserProfile(userProfile.uid, { location });
             setIsEditing(false);
             window.location.reload(); // Refresh to show new name in Layout
         }
@@ -34,6 +70,10 @@ export default function ProfileView({ userProfile }) {
                 <div className="space-y-2">
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Public Display Name</label>
                   <input value={displayName} onChange={e => setDisplayName(e.target.value)} required className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 focus:ring-2 focus:ring-[#2563EB]/20 focus:bg-white transition-all font-medium" placeholder="Enter your scholarly name"/>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Library Location</label>
+                  <input value={location} onChange={e => setLocation(e.target.value)} className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 focus:ring-2 focus:ring-[#2563EB]/20 focus:bg-white transition-all font-medium" placeholder="e.g. Central Archive, Wing A"/>
                 </div>
                 <div className="flex gap-4">
                   <button disabled={isSaving} type="submit" className="flex-1 bg-[#0F172A] text-white py-4 rounded-xl font-bold hover:bg-[#1E293B] transition-all disabled:opacity-50 flex items-center justify-center gap-2">
@@ -63,9 +103,23 @@ export default function ProfileView({ userProfile }) {
                   {userProfile.displayName?.charAt(0)}
                 </div>)}
             </div>
-            <button className="absolute bottom-1 right-1 sm:bottom-2 sm:right-2 p-2 sm:p-2.5 bg-white rounded-xl border border-slate-200 shadow-md text-slate-600 hover:text-[#2563EB] transition-all transform hover:scale-110">
+            <label className="absolute bottom-1 right-1 sm:bottom-2 sm:right-2 p-2 sm:p-2.5 bg-white rounded-xl border border-slate-200 shadow-md text-slate-600 hover:text-[#2563EB] transition-all transform hover:scale-110 cursor-pointer">
               <Camera className="w-4 h-4 sm:w-5 h-5"/>
-            </button>
+              <input type="file" accept="image/*" className="hidden" 
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    try {
+                      const base64Str = await compressImage(file);
+                      await libraryService.updateUserProfile(userProfile.uid, { photoURL: base64Str });
+                      window.location.reload();
+                    } catch (err) {
+                      console.error("Image compression failed", err);
+                    }
+                  }
+                }}
+              />
+            </label>
           </div>
 
           <div className="flex-1 pb-0 sm:pb-4">
@@ -113,7 +167,7 @@ export default function ProfileView({ userProfile }) {
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Library Location</label>
                   <div className="flex items-center gap-3 text-[#1E293B] font-medium">
                     <MapPin className="w-4 h-4 text-slate-300"/>
-                    Central Archive, Wing A
+                    {userProfile.location || 'Central Archive, Wing A'}
                   </div>
                 </div>
 
@@ -121,7 +175,10 @@ export default function ProfileView({ userProfile }) {
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Member Since</label>
                   <div className="flex items-center gap-3 text-[#1E293B] font-medium">
                     <Calendar className="w-4 h-4 text-slate-300"/>
-                    May 2026
+                    {userProfile.createdAt ? new Date(
+                      userProfile.createdAt?.toMillis?.() || 
+                      (userProfile.createdAt?.seconds ? userProfile.createdAt.seconds * 1000 : Date.now())
+                    ).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'May 2026'}
                   </div>
                 </div>
               </div>

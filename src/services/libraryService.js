@@ -248,29 +248,37 @@ export const libraryService = {
         }
     },
     // Users
+    async updateUserProfile(uid, data) {
+        try {
+            await updateDoc(doc(db, USERS_COL, uid), data);
+        } catch (e) {
+            handleFirestoreError(e, OperationType.WRITE, `${USERS_COL}/${uid}`);
+        }
+    },
     async ensureUserProfile(user) {
         try {
             const userRef = doc(db, USERS_COL, user.uid);
             const userDoc = await getDoc(userRef);
+            const existingData = userDoc.exists() ? userDoc.data() : {};
             const role = user.email === 'aaronjamesvillamonte@gmail.com' ? 'admin' : 'member';
             const profile = {
+                ...existingData,
                 uid: user.uid,
                 email: user.email,
                 role,
-                displayName: user.displayName || 'Anonymous',
-                photoURL: user.photoURL || '',
-                createdAt: userDoc.exists() ? userDoc.data()?.createdAt : serverTimestamp()
+                displayName: user.displayName || existingData.displayName || 'Anonymous',
+                photoURL: existingData.photoURL || user.photoURL || '',
+                createdAt: existingData.createdAt || serverTimestamp()
             };
             if (!userDoc.exists()) {
                 await setDoc(userRef, profile);
             }
             else {
-                // Sync display name if changed
-                const existingData = userDoc.data();
+                // Sync Auth display name if changed
                 if (user.displayName && existingData.displayName !== user.displayName) {
+                    profile.displayName = user.displayName;
                     await updateDoc(userRef, {
-                        displayName: user.displayName,
-                        photoURL: user.photoURL || existingData.photoURL
+                        displayName: user.displayName
                     });
                 }
             }

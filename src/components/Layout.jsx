@@ -4,21 +4,94 @@ import { LayoutDashboard, Library, BookOpen, CalendarCheck, Settings, Search, He
 import { auth } from '../lib/firebase';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
+import { libraryService } from '../services/libraryService';
 export default function Layout({ children, userProfile }) {
     const [isSidebarOpen, setIsSidebarOpen] = React.useState(window.innerWidth > 768);
     const location = useLocation();
     const [notificationsOpen, setNotificationsOpen] = React.useState(false);
-    const [notifications, setNotifications] = React.useState([
-        { id: 1, title: 'Welcome to Lumina', message: 'You have been granted full access to our digital collection.', time: '2h ago', read: false },
-        { id: 2, title: 'Upcoming Due Date', message: 'The Volume "Quantum Ethics" is due in 3 days.', time: '5h ago', read: false },
-        { id: 3, title: 'New Arrival', message: 'A rare edition of "Urban Cartography" has been cataloged.', time: '1d ago', read: true },
-    ]);
+    const [notifications, setNotifications] = React.useState([]);
+
+    React.useEffect(() => {
+        if (!userProfile?.uid) return;
+        
+        async function fetchNotifications() {
+            try {
+                // 1. Fetch completed volumes
+                const loans = await libraryService.getUserLoans(userProfile.uid);
+                const completedLoans = loans.filter(l => l.readingProgress >= 100);
+                
+                // 2. Fetch new arrivals (books added in the last 7 days)
+                const books = await libraryService.getBooks();
+                const now = new Date().getTime();
+                const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
+                
+                const newArrivals = books.filter(b => {
+                    const createdTime = b.createdAt?.toMillis?.() || (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0) || 0;
+                    if (!createdTime) return false;
+                    return (now - createdTime) < SEVEN_DAYS;
+                });
+                
+                // Build notification array
+                let dynamicNotifications = [];
+                
+                completedLoans.forEach(loan => {
+                    const ts = loan.lastReadAt?.toMillis?.() || (loan.lastReadAt?.seconds ? loan.lastReadAt.seconds * 1000 : 0) || 0;
+                    dynamicNotifications.push({
+                        id: `completed-${loan.id}`,
+                        title: 'Volume Completed',
+                        message: `You have finished reading "${loan.bookTitle}".`,
+                        time: 'Recently completed',
+                        timestamp: ts
+                    });
+                });
+                
+                newArrivals.forEach(book => {
+                    const ts = book.createdAt?.toMillis?.() || (book.createdAt?.seconds ? book.createdAt.seconds * 1000 : 0) || 0;
+                    dynamicNotifications.push({
+                        id: `new-${book.id}`,
+                        title: 'New Arrival',
+                        message: `A new volume "${book.title}" has been cataloged.`,
+                        time: 'Recently added',
+                        timestamp: ts
+                    });
+                });
+                
+                dynamicNotifications.sort((a, b) => b.timestamp - a.timestamp);
+                
+                // Merge with localStorage read state
+                const readSet = new Set(JSON.parse(localStorage.getItem(`readNotifications_${userProfile.uid}`) || '[]'));
+                const merged = dynamicNotifications.map(n => ({
+                    ...n,
+                    read: readSet.has(n.id)
+                }));
+                
+                setNotifications(merged);
+            } catch (e) {
+                console.error('Failed to fetch notifications:', e);
+            }
+        }
+        
+        // Initial fetch and polling
+        fetchNotifications();
+        const intv = setInterval(fetchNotifications, 30000);
+        return () => clearInterval(intv);
+    }, [userProfile?.uid]);
+
     const unreadCount = notifications.filter(n => !n.read).length;
     const markAllRead = () => {
-        setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+        setNotifications(prev => {
+            const up = prev.map(n => ({ ...n, read: true }));
+            localStorage.setItem(`readNotifications_${userProfile?.uid}`, JSON.stringify(up.map(n => n.id)));
+            return up;
+        });
     };
     const markRead = (id) => {
-        setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+        setNotifications(prev => {
+            const up = prev.map(n => n.id === id ? { ...n, read: true } : n);
+            const readIds = up.filter(n => n.read).map(n => n.id);
+            localStorage.setItem(`readNotifications_${userProfile?.uid}`, JSON.stringify(readIds));
+            return up;
+        });
     };
     // Close notifications on route change
     React.useEffect(() => {

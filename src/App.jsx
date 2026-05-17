@@ -23,7 +23,14 @@ export default function App() {
         if (user) {
             setProfileLoading(true);
             libraryService.ensureUserProfile(user)
-                .then(setUserProfile)
+                .then(profile => {
+                    if (profile) setUserProfile(profile);
+                    else setUserProfile({ uid: user.uid, role: 'member', displayName: user.displayName || 'Error', photoURL: user.photoURL, createdAt: Date.now() });
+                })
+                .catch(err => {
+                    console.error("App: ensureUserProfile failed", err);
+                    setUserProfile({ uid: user.uid, role: 'member', displayName: user.displayName || 'Error fetching profile', photoURL: user.photoURL, createdAt: Date.now() });
+                })
                 .finally(() => setProfileLoading(false));
         }
         else {

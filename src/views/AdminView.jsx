@@ -1,8 +1,43 @@
 import React from 'react';
 import { libraryService } from '../services/libraryService';
 import { formatDate, cn } from '../lib/utils';
-import { Plus, Edit2, Trash2, ShieldCheck, Book as BookIcon, History, PieChart, Save, Sparkles } from 'lucide-react';
+import { Plus, Edit2, Trash2, ShieldCheck, Book as BookIcon, History, PieChart, Save, Sparkles, Upload } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+
+const compressImage = (file) => {
+    return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+                const MAX_WIDTH = 400;
+                const MAX_HEIGHT = 600;
+                if (width > height) {
+                    if (width > MAX_WIDTH) {
+                        height *= MAX_WIDTH / width;
+                        width = MAX_WIDTH;
+                    }
+                } else {
+                    if (height > MAX_HEIGHT) {
+                        width *= MAX_HEIGHT / height;
+                        height = MAX_HEIGHT;
+                    }
+                }
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                resolve(canvas.toDataURL('image/jpeg', 0.7));
+            };
+            img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+};
+
 export default function AdminView({ userProfile }) {
     const [activeTab, setActiveTab] = React.useState('books');
     const [books, setBooks] = React.useState([]);
@@ -236,30 +271,75 @@ export default function AdminView({ userProfile }) {
                     <input value={editingBook.category} onChange={e => setEditingBook({ ...editingBook, category: e.target.value })} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-3 focus:ring-2 focus:ring-[#2563EB]/10 focus:bg-white transition-all font-medium"/>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Total Stock</label>
                     <input type="number" required min="0" value={editingBook.quantity} onChange={e => {
-                const q = parseInt(e.target.value);
+                const q = Math.max(0, parseInt(e.target.value) || 0);
+                if (!editingBook.id) {
+                    setEditingBook({ ...editingBook, quantity: q, availableCount: q });
+                    return;
+                }
+                const origBook = books.find(b => b.id === editingBook.id) || editingBook;
+                const delta = q - origBook.quantity;
                 setEditingBook({
                     ...editingBook,
                     quantity: q,
-                    availableCount: editingBook.id ? editingBook.availableCount : q
+                    availableCount: Math.max(0, Math.min(q, origBook.availableCount + delta))
                 });
             }} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-3 focus:ring-2 focus:ring-[#2563EB]/10 focus:bg-white transition-all font-medium"/>
                   </div>
-                  <div className="flex items-center gap-3 pt-6">
-                    <button type="button" onClick={() => setEditingBook({ ...editingBook, isDigital: !editingBook.isDigital })} className={cn("flex items-center gap-2 px-4 py-3 rounded-2xl text-xs font-bold uppercase transition-all border", editingBook.isDigital
+                  
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Available</label>
+                    <input type="number" required min="0" max={editingBook.quantity} value={editingBook.availableCount !== undefined ? editingBook.availableCount : editingBook.quantity} onChange={e => {
+                let q = Math.max(0, parseInt(e.target.value) || 0);
+                q = Math.min(q, editingBook.quantity);
+                setEditingBook({
+                    ...editingBook,
+                    availableCount: q
+                });
+            }} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-3 focus:ring-2 focus:ring-[#2563EB]/10 focus:bg-white transition-all font-medium"/>
+                  </div>
+
+                  <div className="flex items-center gap-3 md:pt-6">
+                    <button type="button" onClick={() => setEditingBook({ ...editingBook, isDigital: !editingBook.isDigital })} className={cn("flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-2xl text-xs font-bold uppercase transition-all border", editingBook.isDigital
                 ? "bg-[#2563EB] text-white border-[#2563EB] shadow-md shadow-blue-100"
                 : "bg-white text-slate-500 border-slate-200 hover:border-slate-300")}>
-                      {editingBook.isDigital ? 'Digital Volume' : 'Physical Volume'}
+                      {editingBook.isDigital ? 'Digital' : 'Physical'}
                     </button>
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Cover Image URL</label>
-                  <input placeholder="https://..." value={editingBook.coverUrl || ''} onChange={e => setEditingBook({ ...editingBook, coverUrl: e.target.value })} className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-3 focus:ring-2 focus:ring-[#2563EB]/10 focus:bg-white transition-all font-medium"/>
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Cover Image</label>
+                  <div className="flex flex-col gap-3">
+                    {editingBook.coverUrl && (
+                      <div className="w-16 h-24 bg-slate-100 rounded overflow-hidden shadow-sm border border-slate-200">
+                        <img src={editingBook.coverUrl} alt="Cover preview" className="w-full h-full object-cover" />
+                      </div>
+                    )}
+                    <label className="flex items-center justify-center gap-2 cursor-pointer w-full bg-slate-50 border border-slate-200 border-dashed rounded-2xl px-5 py-4 hover:bg-slate-100 transition-colors">
+                      <Upload className="w-4 h-4 text-slate-500" />
+                      <span className="text-sm font-medium text-slate-600">Upload Image from Local Storage</span>
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        className="hidden" 
+                        onChange={async (e) => {
+                          const file = e.target.files[0];
+                          if (file) {
+                            try {
+                              const base64Str = await compressImage(file);
+                              setEditingBook({ ...editingBook, coverUrl: base64Str });
+                            } catch (err) {
+                              console.error("Image compression failed", err);
+                            }
+                          }
+                        }} 
+                      />
+                    </label>
+                  </div>
                 </div>
 
                 <div className="flex gap-4 pt-4">
